@@ -1,0 +1,11 @@
+install:
+  commands:
+    - ["npm", "ci", "--include=dev"]
+
+run:
+  command: ["node", ".next/standalone/server.js"]
+
+profile:
+  label: "Octopus Energy Dashboard"
+  description: "Electricity consumption and export visualisation with tariff breakdown for Octopus Energy NZ"
+  icon: icon.svg

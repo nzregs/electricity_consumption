@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Octopus Energy NZ brand tokens */
+    --brand-primary: #F050F8;
+    --brand-primary-foreground: #100030;
+    --brand-nav-bg: #100030;
+    --brand-nav-fg: #F0FFFF;
+
+    /* Octopus palette */
+    --octopus-deep-navy: #100030;
+    --octopus-dark-purple: #180048;
+    --octopus-mid-purple: #2D1A83;
+    --octopus-purple: #5840FF;
+    --octopus-pink: #F050F8;
+    --octopus-hot-pink: #FF48D8;
+    --octopus-cyan: #60F0F8;
+    --octopus-sky-blue: #00C8F8;
+    --octopus-white: #F0FFFF;
+
+    /* Chart tariff colors */
+    --chart-peak: #60F0F8;
+    --chart-offpeak: #F050F8;
+    --chart-night: #9B7DFF;
+    --chart-shoulder: #7B6BAA;
+
+    /* Consumption chart colors (matching screenshot) */
+    --chart-consumption-peak: #2DD4A0;
+    --chart-consumption-offpeak: #F472B6;
+    --chart-consumption-night: #E9A8F2;
+
+    /* Export chart colors (matching screenshot) */
+    --chart-export-peak: #4ECDC4;
+    --chart-export-offpeak: #60F0F8;
+    --chart-export-night: #9B7DFF;
+
+    /* Dark mode only for this app */
+    --background: #100030;
+    --foreground: #F0FFFF;
+    --card: #180048;
+    --card-foreground: #F0FFFF;
+    --popover: #180048;
+    --popover-foreground: #F0FFFF;
+
+    --primary: var(--brand-primary);
+    --primary-foreground: var(--brand-primary-foreground);
+
+    --secondary: #2D1A83;
+    --secondary-foreground: #F0FFFF;
+    --muted: #2D1A83;
+    --muted-foreground: #9B8FCC;
+    --accent: #2D1A83;
+    --accent-foreground: #F0FFFF;
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: #ffffff;
+    --border: #3D2A93;
+    --input: #3D2A93;
+    --ring: var(--brand-primary);
+    --radius: 0.75rem;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-chromatophore: 'Chromatophore', helvetica, arial, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    font-family: var(--font-chromatophore);
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

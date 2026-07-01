@@ -1,0 +1,24 @@
+definition_version: "2"
+
+entities:
+  octopus_energy_dashboard:
+    type: snowflake-app
+    identifier:
+      name: OCTOPUS_ENERGY_DASHBOARD
+      database: REGANHOME
+      schema: PUBLIC
+    artifacts:
+      - src: ./*
+        dest: ./
+        ignore:
+          - node_modules
+          - .env*
+          - __pycache__
+          - "*.pyc"
+          - .next
+          - .git
+          - snowflake.log
+          - theme
+
+    query_warehouse: ADHOC
+    code_stage: REGANHOME.PUBLIC.OCTOPUS_ENERGY_DASHBOARD_CODE
