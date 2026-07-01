@@ -1,6 +1,79 @@
-import { querySnowflake } from "@/lib/snowflake"
+import { querySnowflake, getServiceToken, readTomlDefaultConnection } from "@/lib/snowflake"
 
 export const dynamic = "force-dynamic"
+
+const SEMANTIC_VIEW = "REGANHOME.PUBLIC.ELECTRICITY_CONSUMPTION"
+
+interface ChatMessage {
+  role: "user" | "assistant"
+  content: string
+}
+
+interface AnalystContentBlock {
+  type: "text" | "sql" | "suggestions"
+  text?: string
+  statement?: string
+  suggestions?: string[]
+}
+
+function sfEscape(str: string): string {
+  return str.replace(/'/g, "''").replace(/\\/g, "\\\\")
+}
+
+// --- SPCS Mode: Cortex Analyst REST API with semantic view ---
+
+function getSnowflakeHost(): string {
+  if (process.env.SNOWFLAKE_HOST) return process.env.SNOWFLAKE_HOST
+  if (process.env.SNOWFLAKE_ACCOUNT_URL) return process.env.SNOWFLAKE_ACCOUNT_URL.replace(/^https?:\/\//, "")
+  const tomlConn = readTomlDefaultConnection()
+  if (tomlConn?.host) return tomlConn.host
+  const account = process.env.SNOWFLAKE_ACCOUNT || tomlConn?.account || ""
+  if (account) return `${account.toLowerCase().replace(/_/g, "-")}.snowflakecomputing.com`
+  throw new Error("Cannot determine Snowflake host")
+}
+
+async function callCortexAnalystREST(userQuestion: string): Promise<{ text: string; sql?: string; suggestions?: string[] }> {
+  const host = getSnowflakeHost()
+  const token = getServiceToken()
+  const url = `https://${host}/api/v2/cortex/analyst/message`
+
+  const body = {
+    messages: [{ role: "user", content: [{ type: "text", text: userQuestion }] }],
+    semantic_view: SEMANTIC_VIEW,
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      "X-Snowflake-Authorization-Token-Type": "OAUTH",
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Cortex Analyst API ${response.status}: ${errorText}`)
+  }
+
+  const data = await response.json() as { message: { content: AnalystContentBlock[] } }
+  const blocks = data.message?.content ?? []
+
+  let textParts: string[] = []
+  let sql: string | undefined
+  let suggestions: string[] = []
+
+  for (const block of blocks) {
+    if (block.type === "text" && block.text) textParts.push(block.text)
+    else if (block.type === "sql" && block.statement) sql = block.statement
+    else if (block.type === "suggestions" && block.suggestions) suggestions = block.suggestions
+  }
+
+  return { text: textParts.join("\n"), sql, suggestions }
+}
+
+// --- Local Dev Mode: CORTEX.COMPLETE text-to-SQL fallback ---
 
 const SCHEMA_CONTEXT = `You are an energy usage assistant for a New Zealand household. You have access to the following Snowflake tables in the REGANHOME.PUBLIC schema:
 
@@ -18,23 +91,6 @@ The ICP is 0145237680LCE44. Current provider is Octopus Energy (PROVIDER_ID=602,
 
 Important: Filter by USAGE_TYPE = ''Import'' for consumption queries and ''Export'' for generation/export queries unless the user asks about both.`
 
-const SQL_SYSTEM_PROMPT = `${SCHEMA_CONTEXT}
-
-Given the user's question, write a single Snowflake SQL query to answer it. Return ONLY the SQL query, no explanation, no markdown fencing. If the question cannot be answered with SQL against these tables, return exactly: CANNOT_ANSWER`
-
-const ANSWER_SYSTEM_PROMPT = `${SCHEMA_CONTEXT}
-
-You are given the user's question and the SQL query results. Provide a concise, helpful answer in 1-3 sentences. Format numbers with appropriate units (kWh, $). If the results are empty, say so clearly.`
-
-interface ChatMessage {
-  role: "user" | "assistant"
-  content: string
-}
-
-function sfEscape(str: string): string {
-  return str.replace(/'/g, "''").replace(/\\/g, "\\\\")
-}
-
 async function cortexComplete(systemPrompt: string, userPrompt: string): Promise<string> {
   const sql = `SELECT SNOWFLAKE.CORTEX.COMPLETE(
     'claude-4-sonnet',
@@ -49,6 +105,51 @@ async function cortexComplete(systemPrompt: string, userPrompt: string): Promise
   return result[0]?.RESPONSE ?? ""
 }
 
+async function callCortexAnalystLocal(userQuestion: string): Promise<{ text: string; sql?: string }> {
+  const sqlPrompt = `${SCHEMA_CONTEXT}\n\nGiven the user's question, write a single Snowflake SQL query to answer it. Return ONLY the SQL query, no explanation, no markdown fencing. If the question cannot be answered with SQL against these tables, return exactly: CANNOT_ANSWER`
+
+  const generatedText = await cortexComplete(sqlPrompt, userQuestion)
+
+  if (!generatedText || generatedText.includes("CANNOT_ANSWER")) {
+    return { text: "I can only answer questions about your electricity usage, tariffs, and costs. Could you rephrase your question?" }
+  }
+
+  let sql = generatedText.replace(/```sql\n?/gi, "").replace(/```\n?/g, "").trim()
+  if (!sql.toUpperCase().startsWith("SELECT") && !sql.toUpperCase().startsWith("WITH")) {
+    return { text: "I can only answer read-only questions about your data." }
+  }
+
+  return { text: "", sql }
+}
+
+// --- Shared: Execute SQL and summarize results ---
+
+async function executeAndSummarize(sql: string, userQuestion: string, analystText: string): Promise<{ reply: string; sql: string }> {
+  let queryResults: Record<string, any>[]
+  try {
+    queryResults = await querySnowflake(sql)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error"
+    console.error("Generated SQL failed:", sql, msg)
+    return {
+      reply: analystText || "I tried to query your data but encountered an error. Could you try rephrasing your question?",
+      sql
+    }
+  }
+
+  const resultsStr = JSON.stringify(queryResults.slice(0, 50), null, 2)
+  const answerPrompt = `Question: ${userQuestion}\n\nSQL Results (${queryResults.length} rows):\n${resultsStr}`
+
+  const answer = await cortexComplete(
+    "You are an energy usage assistant. Given the user's question and SQL results, provide a concise helpful answer in 1-3 sentences. Format numbers with appropriate units (kWh, $NZD). If results are empty, say so clearly.",
+    answerPrompt
+  )
+
+  return { reply: answer || analystText || "I couldn't generate an answer.", sql }
+}
+
+// --- Main handler ---
+
 export async function POST(request: Request) {
   try {
     const { messages } = (await request.json()) as { messages: ChatMessage[] }
@@ -59,56 +160,43 @@ export async function POST(request: Request) {
     }
 
     const userQuestion = lastUserMessage.content
+    const isSpcs = !!getServiceToken()
 
-    // Step 1: Generate SQL from the user's question
-    const generatedText = await cortexComplete(SQL_SYSTEM_PROMPT, userQuestion)
+    let text = ""
+    let sql: string | undefined
+    let suggestions: string[] | undefined
 
-    if (!generatedText) {
-      return Response.json({ reply: "I'm sorry, I couldn't process that question. Please try again." })
+    if (isSpcs) {
+      // Production: Use Cortex Analyst REST API with the semantic view
+      const result = await callCortexAnalystREST(userQuestion)
+      text = result.text
+      sql = result.sql
+      suggestions = result.suggestions
+    } else {
+      // Local dev: Use CORTEX.COMPLETE text-to-SQL
+      const result = await callCortexAnalystLocal(userQuestion)
+      text = result.text
+      sql = result.sql
     }
 
-    // If the model says it can't answer
-    if (generatedText.includes("CANNOT_ANSWER")) {
-      return Response.json({
-        reply: "I can only answer questions about your electricity usage, tariffs, and costs. Could you rephrase your question?"
-      })
+    // If we got SQL, execute it and summarize
+    if (sql) {
+      const result = await executeAndSummarize(sql, userQuestion, text)
+      return Response.json(result)
     }
 
-    // Clean SQL - strip markdown fencing if present
-    let sql = generatedText.replace(/```sql\n?/gi, "").replace(/```\n?/g, "").trim()
-    // Safety: only allow SELECT queries
-    if (!sql.toUpperCase().startsWith("SELECT") && !sql.toUpperCase().startsWith("WITH")) {
-      return Response.json({
-        reply: "I can only answer read-only questions about your data. Please ask a question about your electricity usage."
-      })
+    // No SQL - return text or suggestions
+    if (suggestions && suggestions.length > 0) {
+      const suggestionText = text + "\n\nHere are some questions I can answer:\n" + suggestions.map(s => `- ${s}`).join("\n")
+      return Response.json({ reply: suggestionText })
     }
 
-    // Step 2: Execute the generated SQL
-    let queryResults: Record<string, any>[]
-    try {
-      queryResults = await querySnowflake(sql)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error"
-      console.error("Generated SQL failed:", sql, msg)
-      return Response.json({
-        reply: "I tried to query your data but encountered an error. Could you try rephrasing your question?"
-      })
-    }
-
-    // Step 3: Summarize the results
-    const resultsStr = JSON.stringify(queryResults.slice(0, 50), null, 2)
-    const answerPrompt = `Question: ${userQuestion}\n\nSQL Results (${queryResults.length} rows):\n${resultsStr}`
-
-    const answer = await cortexComplete(ANSWER_SYSTEM_PROMPT, answerPrompt)
-
-    return Response.json({
-      reply: answer || "I couldn't generate an answer.",
-      sql
-    })
+    return Response.json({ reply: text || "I couldn't generate an answer. Please try rephrasing your question." })
   } catch (err) {
     console.error("Chat API error:", err)
+    const message = err instanceof Error ? err.message : "Unknown error"
     return Response.json(
-      { error: "Failed to process your question. Please try again." },
+      { error: `Failed to process your question: ${message}` },
       { status: 500 }
     )
   }
