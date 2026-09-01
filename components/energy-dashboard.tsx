@@ -143,8 +143,8 @@ export function EnergyDashboard() {
 
   return (
     <div className="space-y-4">
-      {/* Navigation bar */}
-      <div className="flex items-center justify-between">
+      {/* Sticky navigation bar */}
+      <div className="sticky top-0 z-20 flex items-center justify-between pb-3" style={{ backgroundColor: "var(--octopus-deep-navy)" }}>
         <div className="flex items-center gap-1 rounded-xl border border-border p-1">
           {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
             <button
@@ -161,7 +161,22 @@ export function EnergyDashboard() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          {/* kWh / NZ$ toggle */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className={unitMode === "kwh" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>kWh</span>
+            <button
+              onClick={() => setUnitMode(unitMode === "kwh" ? "dollar" : "kwh")}
+              className="relative w-10 h-5 rounded-full transition-colors"
+              style={{ backgroundColor: unitMode === "kwh" ? "var(--octopus-mid-purple)" : "var(--octopus-cyan)" }}
+            >
+              <span
+                className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                style={{ left: unitMode === "kwh" ? "2px" : "22px" }}
+              />
+            </button>
+            <span className={unitMode === "dollar" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>NZ$</span>
+          </div>
           <button onClick={navigatePrev} className="p-2 rounded-lg border border-border hover:bg-[var(--octopus-mid-purple)]">
             <ChevronLeft size={18} />
           </button>
@@ -185,22 +200,6 @@ export function EnergyDashboard() {
             <ChevronRight size={18} />
           </button>
         </div>
-      </div>
-
-      {/* kWh / NZ$ toggle */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className={unitMode === "kwh" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>kWh</span>
-        <button
-          onClick={() => setUnitMode(unitMode === "kwh" ? "dollar" : "kwh")}
-          className="relative w-10 h-5 rounded-full transition-colors"
-          style={{ backgroundColor: unitMode === "kwh" ? "var(--octopus-mid-purple)" : "var(--octopus-cyan)" }}
-        >
-          <span
-            className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-            style={{ left: unitMode === "kwh" ? "2px" : "22px" }}
-          />
-        </button>
-        <span className={unitMode === "dollar" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>NZ$</span>
       </div>
 
       {/* Cost Summary Pane (NZ$ mode only) */}
