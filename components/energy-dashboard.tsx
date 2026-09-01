@@ -229,6 +229,7 @@ export function EnergyDashboard() {
                 <CostRow label="Peak Export" value={-(exportSummary?.peakCost ?? 0)} />
                 <CostRow label="Off-peak Export" value={-(exportSummary?.offpeakCost ?? 0)} />
                 <CostRow label="Night Export" value={-(exportSummary?.nightCost ?? 0)} />
+                <div className="h-[20px]" />
                 <div className="flex justify-between pt-1 border-t border-[var(--octopus-mid-purple)] font-medium" style={{ color: "var(--octopus-white)" }}>
                   <span>Total Rebate</span>
                   <span>-${(exportSummary?.totalCost ?? 0).toFixed(2)}</span>
