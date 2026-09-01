@@ -3,9 +3,10 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, startOfMonth, endOfMonth, addMonths, subMonths, startOfDay, endOfDay, addDays, subDays, getDaysInMonth, getDay, isSameDay } from "date-fns"
 import { EnergyChart } from "@/components/energy-chart"
-import { ChevronLeft, ChevronRight, Zap, Calendar } from "lucide-react"
+import { HourlyStatsChart } from "@/components/hourly-stats-chart"
+import { ChevronLeft, ChevronRight, Zap, Calendar, BarChart3 } from "lucide-react"
 
-type ViewMode = "day" | "week" | "month"
+type ViewMode = "day" | "week" | "month" | "stats"
 type UsageType = "Import" | "Export"
 type UnitMode = "kwh" | "dollar"
 
@@ -69,6 +70,13 @@ function CalendarPicker({ value, onChange, onClose }: { value: Date; onChange: (
           )
         })}
       </div>
+      <button
+        onClick={() => { onChange(new Date()); onClose() }}
+        className="mt-3 w-full py-1.5 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--octopus-mid-purple)]"
+        style={{ color: "var(--octopus-cyan)" }}
+      >
+        Today
+      </button>
     </div>
   )
 }
@@ -96,13 +104,16 @@ export function EnergyDashboard() {
         return { start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }
       case "month":
         return { start: startOfMonth(currentDate), end: endOfMonth(currentDate) }
+      case "stats":
+        // Stats uses the containing week or month — default to week
+        return { start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }
     }
   }, [viewMode, currentDate])
 
   const navigatePrev = () => {
     switch (viewMode) {
       case "day": setCurrentDate(d => subDays(d, 1)); break
-      case "week": setCurrentDate(d => subWeeks(d, 1)); break
+      case "week": case "stats": setCurrentDate(d => subWeeks(d, 1)); break
       case "month": setCurrentDate(d => subMonths(d, 1)); break
     }
   }
@@ -110,7 +121,7 @@ export function EnergyDashboard() {
   const navigateNext = () => {
     switch (viewMode) {
       case "day": setCurrentDate(d => addDays(d, 1)); break
-      case "week": setCurrentDate(d => addWeeks(d, 1)); break
+      case "week": case "stats": setCurrentDate(d => addWeeks(d, 1)); break
       case "month": setCurrentDate(d => addMonths(d, 1)); break
     }
   }
@@ -118,7 +129,9 @@ export function EnergyDashboard() {
   const { start, end } = getDateRange()
   const dateRangeLabel = viewMode === "day"
     ? format(start, "d MMMM yyyy")
-    : `${format(start, "d MMMM yyyy")} - ${format(end, "d MMMM yyyy")}`
+    : viewMode === "stats"
+      ? `Hourly stats: ${format(start, "d MMM")} - ${format(end, "d MMM yyyy")}`
+      : `${format(start, "d MMMM yyyy")} - ${format(end, "d MMMM yyyy")}`
 
   return (
     <div className="space-y-4">
@@ -139,6 +152,18 @@ export function EnergyDashboard() {
               {mode}
             </button>
           ))}
+          <button
+            onClick={() => setViewMode("stats")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg transition-colors ${
+              viewMode === "stats"
+                ? "text-[var(--octopus-deep-navy)] font-medium"
+                : "text-[var(--octopus-white)] hover:bg-[var(--octopus-mid-purple)]"
+            }`}
+            style={viewMode === "stats" ? { backgroundColor: "var(--octopus-cyan)" } : {}}
+          >
+            <BarChart3 size={14} />
+            Stats
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={navigatePrev} className="p-2 rounded-lg border border-border hover:bg-[var(--octopus-mid-purple)]">
@@ -222,13 +247,22 @@ export function EnergyDashboard() {
         </div>
 
         {/* Chart */}
-        <EnergyChart
-          startDate={format(start, "yyyy-MM-dd")}
-          endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
-          usageType={usageType}
-          unitMode={unitMode}
-          viewMode={viewMode}
-        />
+        {viewMode === "stats" ? (
+          <HourlyStatsChart
+            startDate={format(start, "yyyy-MM-dd")}
+            endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
+            usageType={usageType}
+            unitMode={unitMode}
+          />
+        ) : (
+          <EnergyChart
+            startDate={format(start, "yyyy-MM-dd")}
+            endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
+            usageType={usageType}
+            unitMode={unitMode}
+            viewMode={viewMode}
+          />
+        )}
       </div>
 
       {/* Data range indicator */}
