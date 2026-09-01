@@ -1,14 +1,15 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, startOfMonth, endOfMonth, addMonths, subMonths, startOfDay, endOfDay, addDays, subDays, getDaysInMonth, getDay, isSameDay } from "date-fns"
+import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, startOfMonth, endOfMonth, addMonths, subMonths, startOfDay, endOfDay, addDays, subDays, startOfYear, endOfYear, addYears, subYears, getDaysInMonth, getDay, isSameDay } from "date-fns"
 import { EnergyChart } from "@/components/energy-chart"
 import { HourlyStatsChart } from "@/components/hourly-stats-chart"
 import { ChevronLeft, ChevronRight, Zap, Calendar, BarChart3 } from "lucide-react"
 
-type ViewMode = "day" | "week" | "month" | "stats"
+type ViewMode = "day" | "week" | "month" | "year"
 type UsageType = "Import" | "Export"
 type UnitMode = "kwh" | "dollar"
+type ChartView = "usage" | "stats"
 
 function CalendarPicker({ value, onChange, onClose }: { value: Date; onChange: (d: Date) => void; onClose: () => void }) {
   const [viewDate, setViewDate] = useState(startOfMonth(value))
@@ -85,6 +86,7 @@ export function EnergyDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("week")
   const [usageType, setUsageType] = useState<UsageType>("Import")
   const [unitMode, setUnitMode] = useState<UnitMode>("kwh")
+  const [chartView, setChartView] = useState<ChartView>("usage")
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [showCalendar, setShowCalendar] = useState(false)
   const [dataRange, setDataRange] = useState<{ minDate: string | null; maxDate: string | null }>({ minDate: null, maxDate: null })
@@ -104,41 +106,40 @@ export function EnergyDashboard() {
         return { start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }
       case "month":
         return { start: startOfMonth(currentDate), end: endOfMonth(currentDate) }
-      case "stats":
-        // Stats uses the containing week or month — default to week
-        return { start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }
+      case "year":
+        return { start: startOfYear(currentDate), end: endOfYear(currentDate) }
     }
   }, [viewMode, currentDate])
 
   const navigatePrev = () => {
     switch (viewMode) {
       case "day": setCurrentDate(d => subDays(d, 1)); break
-      case "week": case "stats": setCurrentDate(d => subWeeks(d, 1)); break
+      case "week": setCurrentDate(d => subWeeks(d, 1)); break
       case "month": setCurrentDate(d => subMonths(d, 1)); break
+      case "year": setCurrentDate(d => subYears(d, 1)); break
     }
   }
 
   const navigateNext = () => {
     switch (viewMode) {
       case "day": setCurrentDate(d => addDays(d, 1)); break
-      case "week": case "stats": setCurrentDate(d => addWeeks(d, 1)); break
+      case "week": setCurrentDate(d => addWeeks(d, 1)); break
       case "month": setCurrentDate(d => addMonths(d, 1)); break
+      case "year": setCurrentDate(d => addYears(d, 1)); break
     }
   }
 
   const { start, end } = getDateRange()
   const dateRangeLabel = viewMode === "day"
     ? format(start, "d MMMM yyyy")
-    : viewMode === "stats"
-      ? `Hourly stats: ${format(start, "d MMM")} - ${format(end, "d MMM yyyy")}`
-      : `${format(start, "d MMMM yyyy")} - ${format(end, "d MMMM yyyy")}`
+    : `${format(start, "d MMMM yyyy")} - ${format(end, "d MMMM yyyy")}`
 
   return (
     <div className="space-y-4">
       {/* Navigation bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1 rounded-xl border border-border p-1">
-          {(["day", "week", "month"] as ViewMode[]).map((mode) => (
+          {(["day", "week", "month", "year"] as ViewMode[]).map((mode) => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
@@ -152,18 +153,6 @@ export function EnergyDashboard() {
               {mode}
             </button>
           ))}
-          <button
-            onClick={() => setViewMode("stats")}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg transition-colors ${
-              viewMode === "stats"
-                ? "text-[var(--octopus-deep-navy)] font-medium"
-                : "text-[var(--octopus-white)] hover:bg-[var(--octopus-mid-purple)]"
-            }`}
-            style={viewMode === "stats" ? { backgroundColor: "var(--octopus-cyan)" } : {}}
-          >
-            <BarChart3 size={14} />
-            Stats
-          </button>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={navigatePrev} className="p-2 rounded-lg border border-border hover:bg-[var(--octopus-mid-purple)]">
@@ -191,12 +180,12 @@ export function EnergyDashboard() {
         </div>
       </div>
 
-      {/* Tabs for consumption/export */}
+      {/* Tabs for consumption/export/stats */}
       <div className="flex gap-2">
         <button
-          onClick={() => setUsageType("Import")}
+          onClick={() => { setUsageType("Import"); setChartView("usage") }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            usageType === "Import"
+            usageType === "Import" && chartView === "usage"
               ? "bg-[var(--octopus-mid-purple)] text-[var(--octopus-white)] border border-[var(--octopus-purple)]"
               : "text-[var(--muted-foreground)] hover:text-[var(--octopus-white)]"
           }`}
@@ -205,15 +194,26 @@ export function EnergyDashboard() {
           Electricity
         </button>
         <button
-          onClick={() => setUsageType("Export")}
+          onClick={() => { setUsageType("Export"); setChartView("usage") }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            usageType === "Export"
+            usageType === "Export" && chartView === "usage"
               ? "bg-[var(--octopus-mid-purple)] text-[var(--octopus-white)] border border-[var(--octopus-purple)]"
               : "text-[var(--muted-foreground)] hover:text-[var(--octopus-white)]"
           }`}
         >
           <Zap size={14} />
           Electricity Exported
+        </button>
+        <button
+          onClick={() => { setChartView("stats"); setUsageType("Import") }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            chartView === "stats"
+              ? "bg-[var(--octopus-mid-purple)] text-[var(--octopus-white)] border border-[var(--octopus-purple)]"
+              : "text-[var(--muted-foreground)] hover:text-[var(--octopus-white)]"
+          }`}
+        >
+          <BarChart3 size={14} />
+          Hourly Stats
         </button>
       </div>
 
@@ -247,7 +247,7 @@ export function EnergyDashboard() {
         </div>
 
         {/* Chart */}
-        {viewMode === "stats" ? (
+        {chartView === "stats" ? (
           <HourlyStatsChart
             startDate={format(start, "yyyy-MM-dd")}
             endDate={format(end, "yyyy-MM-dd'T'23:59:59")}

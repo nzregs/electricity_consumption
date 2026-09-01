@@ -52,7 +52,7 @@ interface EnergyChartProps {
   endDate: string
   usageType: "Import" | "Export"
   unitMode: "kwh" | "dollar"
-  viewMode: "day" | "week" | "month"
+  viewMode: "day" | "week" | "month" | "year"
 }
 
 function classifyTariff(timeSlot: string, dayOfWeek: number, tariffs: TariffPeriod[]): string {
@@ -190,9 +190,9 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode 
           if (viewMode === "day") {
             // Group by hour (e.g. "00", "01", ..., "23")
             key = row.TIME_SLOT.substring(0, 2)
-          } else if (viewMode === "week") {
-            // Group by date string to preserve day order within the week
-            key = row.DATE_STR
+          } else if (viewMode === "year") {
+            // Group by month (e.g. "2026-01")
+            key = row.DATE_STR.substring(0, 7)
           } else {
             key = row.DATE_STR
           }
@@ -262,8 +262,25 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode 
           }))
         }
 
+        // Year view: group by month
+        if (viewMode === "year") {
+          const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+          const [sy] = startDate.split("-").map(Number)
+          chartPoints = Array.from({ length: 12 }, (_, i) => {
+            const monthKey = `${sy}-${String(i + 1).padStart(2, "0")}`
+            const daysInMonth = new Date(sy, i + 1, 0).getDate()
+            return {
+              label: MONTH_LABELS[i],
+              peak: Number((grouped[monthKey]?.peak || 0).toFixed(2)),
+              offpeak: Number((grouped[monthKey]?.offpeak || 0).toFixed(2)),
+              night: Number((grouped[monthKey]?.night || 0).toFixed(2)),
+              dailyCharge: dailyChargeRate * daysInMonth,
+            }
+          })
+        }
+
         // Calculate number of days for the standing charge total
-        const numDays = viewMode === "day" ? 1 : viewMode === "week" ? 7 : chartPoints.length
+        const numDays = viewMode === "day" ? 1 : viewMode === "week" ? 7 : viewMode === "year" ? 365 : chartPoints.length
 
         // Calculate summary
         const peakKwh = chartPoints.reduce((sum, d) => sum + d.peak, 0)

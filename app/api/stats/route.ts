@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         MIN(u.USAGE_KWH) AS min_kwh,
         AVG(u.USAGE_KWH) AS avg_kwh,
         MAX(u.USAGE_KWH) AS max_kwh,
-        COUNT(*) AS sample_count
+        COUNT(DISTINCT DATE(u.USAGE_HOUR_START)) AS sample_count
       FROM REGANHOME.PUBLIC.ELECTRICITY_USAGE u
       WHERE u.USAGE_HOUR_START >= '${startDate}'
         AND u.USAGE_HOUR_START < '${endDate}'
