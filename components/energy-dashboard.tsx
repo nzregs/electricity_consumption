@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, startOfMonth, endOfMonth, addMonths, subMonths, startOfDay, endOfDay, addDays, subDays, startOfYear, endOfYear, addYears, subYears, getDaysInMonth, getDay, isSameDay } from "date-fns"
-import { EnergyChart } from "@/components/energy-chart"
+import { EnergyChart, SummaryData } from "@/components/energy-chart"
 import { HourlyStatsChart } from "@/components/hourly-stats-chart"
 import { ChevronLeft, ChevronRight, Zap, Calendar, BarChart3 } from "lucide-react"
 
@@ -80,12 +80,23 @@ function CalendarPicker({ value, onChange, onClose }: { value: Date; onChange: (
   )
 }
 
+function CostRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex justify-between" style={{ color: "var(--muted-foreground)" }}>
+      <span>{label}</span>
+      <span>{value < 0 ? `-$${Math.abs(value).toFixed(2)}` : `$${value.toFixed(2)}`}</span>
+    </div>
+  )
+}
+
 export function EnergyDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("week")
   const [unitMode, setUnitMode] = useState<UnitMode>("kwh")
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [showCalendar, setShowCalendar] = useState(false)
   const [dataRange, setDataRange] = useState<{ minDate: string | null; maxDate: string | null }>({ minDate: null, maxDate: null })
+  const [importSummary, setImportSummary] = useState<SummaryData | null>(null)
+  const [exportSummary, setExportSummary] = useState<SummaryData | null>(null)
 
   useEffect(() => {
     fetch("/api/data-range")
@@ -192,6 +203,47 @@ export function EnergyDashboard() {
         <span className={unitMode === "dollar" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>NZ$</span>
       </div>
 
+      {/* Cost Summary Pane (NZ$ mode only) */}
+      {unitMode === "dollar" && (importSummary || exportSummary) && (
+        <div className="rounded-xl border border-border p-5" style={{ backgroundColor: "var(--octopus-dark-purple)" }}>
+          <h3 className="text-sm font-medium mb-4" style={{ color: "var(--octopus-white)" }}>Period Cost Summary</h3>
+          <div className="grid grid-cols-2 gap-6">
+            {/* Import costs */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--octopus-pink)" }}>Import Costs</p>
+              <div className="space-y-1 text-sm">
+                <CostRow label="Daily charge" value={importSummary?.dailyChargeCost ?? 0} />
+                <CostRow label="Peak" value={importSummary?.peakCost ?? 0} />
+                <CostRow label="Off-peak" value={importSummary?.offpeakCost ?? 0} />
+                <CostRow label="Night" value={importSummary?.nightCost ?? 0} />
+                <div className="flex justify-between pt-1 border-t border-[var(--octopus-mid-purple)] font-medium" style={{ color: "var(--octopus-white)" }}>
+                  <span>Total Import</span>
+                  <span>${(importSummary?.totalCost ?? 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            {/* Export rebates */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--octopus-cyan)" }}>Export Rebates</p>
+              <div className="space-y-1 text-sm">
+                <CostRow label="Peak Export" value={-(exportSummary?.peakCost ?? 0)} />
+                <CostRow label="Off-peak Export" value={-(exportSummary?.offpeakCost ?? 0)} />
+                <CostRow label="Night Export" value={-(exportSummary?.nightCost ?? 0)} />
+                <div className="flex justify-between pt-1 border-t border-[var(--octopus-mid-purple)] font-medium" style={{ color: "var(--octopus-white)" }}>
+                  <span>Total Rebate</span>
+                  <span>-${(exportSummary?.totalCost ?? 0).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Net total */}
+          <div className="flex justify-between mt-4 pt-3 border-t-2 border-[var(--octopus-purple)] text-base font-bold" style={{ color: "var(--octopus-cyan)" }}>
+            <span>NET COST</span>
+            <span>${((importSummary?.totalCost ?? 0) - (exportSummary?.totalCost ?? 0)).toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Electricity (Import) */}
       <div className="rounded-xl border border-border p-6" style={{ backgroundColor: "var(--octopus-dark-purple)" }}>
         <div className="mb-4">
@@ -207,6 +259,7 @@ export function EnergyDashboard() {
           usageType="Import"
           unitMode={unitMode}
           viewMode={viewMode}
+          onSummaryReady={setImportSummary}
         />
       </div>
 
@@ -225,6 +278,7 @@ export function EnergyDashboard() {
           usageType="Export"
           unitMode={unitMode}
           viewMode={viewMode}
+          onSummaryReady={setExportSummary}
         />
       </div>
 

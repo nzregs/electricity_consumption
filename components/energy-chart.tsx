@@ -35,7 +35,7 @@ interface ChartDataPoint {
   dailyCharge: number
 }
 
-interface SummaryData {
+export interface SummaryData {
   peakKwh: number
   offpeakKwh: number
   nightKwh: number
@@ -53,6 +53,7 @@ interface EnergyChartProps {
   usageType: "Import" | "Export"
   unitMode: "kwh" | "dollar"
   viewMode: "day" | "week" | "month" | "year"
+  onSummaryReady?: (summary: SummaryData) => void
 }
 
 function classifyTariff(timeSlot: string, dayOfWeek: number, tariffs: TariffPeriod[]): string {
@@ -158,7 +159,7 @@ function CustomTooltip({ active, payload, label, unit, unitMode, colors, peakLab
   )
 }
 
-export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode }: EnergyChartProps) {
+export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode, onSummaryReady }: EnergyChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([])
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [icp, setIcp] = useState("")
@@ -294,14 +295,16 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode 
 
         const dailyChargeCost = usageType === "Export" ? 0 : numDays * dailyChargeRate
 
-        setSummary({
+        const computedSummary: SummaryData = {
           peakKwh, offpeakKwh, nightKwh, totalKwh,
           peakCost: peakKwh * peakRate,
           offpeakCost: offpeakKwh * shoulderRate,
           nightCost: nightKwh * offpeakRate,
           dailyChargeCost,
           totalCost: peakKwh * peakRate + offpeakKwh * shoulderRate + nightKwh * offpeakRate + dailyChargeCost,
-        })
+        }
+        setSummary(computedSummary)
+        onSummaryReady?.(computedSummary)
 
         // Convert to dollars if needed
         if (unitMode === "dollar" && usageType === "Import") {
