@@ -212,10 +212,10 @@ export function EnergyDashboard() {
             <div>
               <p className="text-xs font-medium mb-2" style={{ color: "var(--octopus-pink)" }}>Import Costs</p>
               <div className="space-y-1 text-sm">
-                <CostRow label="Daily charge" value={importSummary?.dailyChargeCost ?? 0} />
                 <CostRow label="Peak" value={importSummary?.peakCost ?? 0} />
                 <CostRow label="Off-peak" value={importSummary?.offpeakCost ?? 0} />
                 <CostRow label="Night" value={importSummary?.nightCost ?? 0} />
+                <CostRow label="Daily charge" value={importSummary?.dailyChargeCost ?? 0} />
                 <div className="flex justify-between pt-1 border-t border-[var(--octopus-mid-purple)] font-medium" style={{ color: "var(--octopus-white)" }}>
                   <span>Total Import</span>
                   <span>${(importSummary?.totalCost ?? 0).toFixed(2)}</span>
