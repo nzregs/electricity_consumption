@@ -6,6 +6,6 @@ run:
   command: ["node", ".next/standalone/server.js"]
 
 profile:
-  label: "Octopus Energy Dashboard"
-  description: "Electricity consumption and export visualisation with tariff breakdown for Octopus Energy NZ"
+  label: "Home Energy Dashboard"
+  description: "Electricity consumption and export visualisation with tariff breakdown"
   icon: icon.svg

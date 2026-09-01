@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   const startDate = searchParams.get("startDate")
   const endDate = searchParams.get("endDate")
   const usageType = searchParams.get("usageType") || "Import"
+  const providerId = searchParams.get("providerId")
   const groupBy = searchParams.get("groupBy") || "day"
 
   if (!startDate || !endDate) {
@@ -15,7 +16,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get tariff periods for Octopus Flexi Low User
+    const providerFilter = providerId
+      ? `WHERE p.PROVIDER_ID = ${Number(providerId)}`
+      : `WHERE p.CURRENT_PROVIDER = TRUE`
+
     const tariffRows = await querySnowflake(`
       SELECT tp.START_TIME, tp.END_TIME, tp.TARIFF_TYPE, tp.APPLIES_TO_DAYS, tp.ENERGY_DIRECTION,
              p.PEAK_RATE, p.SHOULDER_RATE, p.OFFPEAK_RATE,
@@ -23,8 +27,7 @@ export async function GET(request: NextRequest) {
              p.DAILY_CHARGE
       FROM REGANHOME.PUBLIC.ELECTRICITY_PROVIDERS p
       JOIN REGANHOME.PUBLIC.ELECTRICITY_TARIFF_PERIODS tp ON p.PROVIDER_ID = tp.PROVIDER_ID
-      WHERE LOWER(p.PROVIDER_NAME) = 'octopus'
-        AND LOWER(p.PLAN_NAME) = 'flexi low user'
+      ${providerFilter}
         AND tp.IS_ACTIVE = TRUE
         AND tp.ENERGY_DIRECTION = '${usageType === "Import" ? "import" : "export"}'
     `)

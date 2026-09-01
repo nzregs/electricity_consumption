@@ -39,6 +39,7 @@ interface HourlyStatsChartProps {
   endDate: string
   usageType: "Import" | "Export"
   unitMode: "kwh" | "dollar"
+  providerId: number | null
 }
 
 function formatHourLabel(h: number): string {
@@ -87,7 +88,7 @@ function StatsTooltip({ active, payload, unitMode }: any) {
   )
 }
 
-export function HourlyStatsChart({ startDate, endDate, usageType, unitMode }: HourlyStatsChartProps) {
+export function HourlyStatsChart({ startDate, endDate, usageType, unitMode, providerId }: HourlyStatsChartProps) {
   const [chartData, setChartData] = useState<ChartPoint[]>([])
   const [icp, setIcp] = useState("")
   const [loading, setLoading] = useState(true)
@@ -97,8 +98,9 @@ export function HourlyStatsChart({ startDate, endDate, usageType, unitMode }: Ho
     async function fetchData() {
       setLoading(true)
       try {
+        const providerParam = providerId ? `&providerId=${providerId}` : ""
         const res = await fetch(
-          `/api/stats?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&usageType=${usageType}`
+          `/api/stats?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&usageType=${usageType}${providerParam}`
         )
         if (!res.ok) throw new Error("Failed to fetch stats")
         const data = await res.json()
@@ -138,7 +140,7 @@ export function HourlyStatsChart({ startDate, endDate, usageType, unitMode }: Ho
     }
 
     fetchData()
-  }, [startDate, endDate, usageType, unitMode])
+  }, [startDate, endDate, usageType, unitMode, providerId])
 
   const unit = unitMode === "kwh" ? "kWh" : "NZ$"
   const color = usageType === "Import" ? "#E020B0" : "#4ECDC4"

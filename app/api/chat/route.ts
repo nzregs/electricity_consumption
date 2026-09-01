@@ -87,7 +87,7 @@ const SCHEMA_CONTEXT = `You are an energy usage assistant for a New Zealand hous
 3. ELECTRICITY_TARIFF_PERIODS - Time-of-use tariff period definitions
    Columns: TARIFF_PERIOD_ID (NUMBER PK), PROVIDER_ID (NUMBER FK), PERIOD_NUMBER (NUMBER), PERIOD_NAME (VARCHAR e.g. "Period 1"), START_TIME (TIME), END_TIME (TIME), TARIFF_TYPE (VARCHAR - "peak","shoulder","offpeak"), APPLIES_TO_DAYS (VARCHAR - "weekdays","weekends","all"), ENERGY_DIRECTION (VARCHAR - "import","export"), IS_ACTIVE (BOOLEAN)
 
-The ICP is 0145237680LCE44. Current provider is Octopus Energy (PROVIDER_ID=602, plan "Flexi - Low User"). Daily charge is $1.725/day. Data spans from 2024-01-01 to 2026-06-28. Currency is NZD.
+The ICP is 0145237680LCE44. The ELECTRICITY_PROVIDERS table has a CURRENT_PROVIDER boolean column - use WHERE CURRENT_PROVIDER = TRUE to find the active provider. Data spans from 2024-01-01 to 2026-06-28. Currency is NZD.
 
 Important: Filter by USAGE_TYPE = ''Import'' for consumption queries and ''Export'' for generation/export queries unless the user asks about both.`
 

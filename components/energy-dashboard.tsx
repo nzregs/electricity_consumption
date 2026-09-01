@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { startOfWeek, endOfWeek, addWeeks, subWeeks, format, startOfMonth, endOfMonth, addMonths, subMonths, startOfDay, endOfDay, addDays, subDays, startOfYear, endOfYear, addYears, subYears, getDaysInMonth, getDay, isSameDay } from "date-fns"
 import { EnergyChart, SummaryData } from "@/components/energy-chart"
 import { HourlyStatsChart } from "@/components/hourly-stats-chart"
+import { useProvider } from "@/components/provider-context"
 import { ChevronLeft, ChevronRight, Zap, Calendar, BarChart3 } from "lucide-react"
 
 type ViewMode = "day" | "week" | "month" | "year"
@@ -90,6 +91,7 @@ function CostRow({ label, value }: { label: string; value: number }) {
 }
 
 export function EnergyDashboard() {
+  const { selectedProviderId } = useProvider()
   const [viewMode, setViewMode] = useState<ViewMode>("week")
   const [unitMode, setUnitMode] = useState<UnitMode>("kwh")
   const [currentDate, setCurrentDate] = useState(() => new Date())
@@ -258,7 +260,9 @@ export function EnergyDashboard() {
           endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
           usageType="Import"
           unitMode={unitMode}
+          providerId={selectedProviderId}
           viewMode={viewMode}
+          providerId={selectedProviderId}
           onSummaryReady={setImportSummary}
         />
       </div>
@@ -278,6 +282,7 @@ export function EnergyDashboard() {
           usageType="Export"
           unitMode={unitMode}
           viewMode={viewMode}
+          providerId={selectedProviderId}
           onSummaryReady={setExportSummary}
         />
       </div>

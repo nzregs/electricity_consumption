@@ -53,6 +53,7 @@ interface EnergyChartProps {
   usageType: "Import" | "Export"
   unitMode: "kwh" | "dollar"
   viewMode: "day" | "week" | "month" | "year"
+  providerId: number | null
   onSummaryReady?: (summary: SummaryData) => void
 }
 
@@ -159,7 +160,7 @@ function CustomTooltip({ active, payload, label, unit, unitMode, colors, peakLab
   )
 }
 
-export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode, onSummaryReady }: EnergyChartProps) {
+export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode, providerId, onSummaryReady }: EnergyChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([])
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [icp, setIcp] = useState("")
@@ -169,8 +170,9 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
     async function fetchData() {
       setLoading(true)
       try {
+        const providerParam = providerId ? `&providerId=${providerId}` : ""
         const res = await fetch(
-          `/api/summary?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&usageType=${usageType}`
+          `/api/summary?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&usageType=${usageType}${providerParam}`
         )
         if (!res.ok) throw new Error("Failed to fetch data")
         const data = await res.json()
@@ -337,7 +339,7 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
     }
 
     fetchData()
-  }, [startDate, endDate, usageType, unitMode, viewMode])
+  }, [startDate, endDate, usageType, unitMode, viewMode, providerId])
 
   const unit = unitMode === "kwh" ? "kWh" : "NZ$"
   const totalDisplay = unitMode === "kwh"
