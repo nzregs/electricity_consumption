@@ -7,9 +7,7 @@ import { HourlyStatsChart } from "@/components/hourly-stats-chart"
 import { ChevronLeft, ChevronRight, Zap, Calendar, BarChart3 } from "lucide-react"
 
 type ViewMode = "day" | "week" | "month" | "year"
-type UsageType = "Import" | "Export"
 type UnitMode = "kwh" | "dollar"
-type ChartView = "usage" | "stats"
 
 function CalendarPicker({ value, onChange, onClose }: { value: Date; onChange: (d: Date) => void; onClose: () => void }) {
   const [viewDate, setViewDate] = useState(startOfMonth(value))
@@ -84,9 +82,7 @@ function CalendarPicker({ value, onChange, onClose }: { value: Date; onChange: (
 
 export function EnergyDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("week")
-  const [usageType, setUsageType] = useState<UsageType>("Import")
   const [unitMode, setUnitMode] = useState<UnitMode>("kwh")
-  const [chartView, setChartView] = useState<ChartView>("usage")
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [showCalendar, setShowCalendar] = useState(false)
   const [dataRange, setDataRange] = useState<{ minDate: string | null; maxDate: string | null }>({ minDate: null, maxDate: null })
@@ -180,89 +176,73 @@ export function EnergyDashboard() {
         </div>
       </div>
 
-      {/* Tabs for consumption/export/stats */}
-      <div className="flex gap-2">
+      {/* kWh / NZ$ toggle */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className={unitMode === "kwh" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>kWh</span>
         <button
-          onClick={() => { setUsageType("Import"); setChartView("usage") }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            usageType === "Import" && chartView === "usage"
-              ? "bg-[var(--octopus-mid-purple)] text-[var(--octopus-white)] border border-[var(--octopus-purple)]"
-              : "text-[var(--muted-foreground)] hover:text-[var(--octopus-white)]"
-          }`}
+          onClick={() => setUnitMode(unitMode === "kwh" ? "dollar" : "kwh")}
+          className="relative w-10 h-5 rounded-full transition-colors"
+          style={{ backgroundColor: unitMode === "kwh" ? "var(--octopus-mid-purple)" : "var(--octopus-cyan)" }}
         >
-          <Zap size={14} />
-          Electricity
+          <span
+            className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+            style={{ left: unitMode === "kwh" ? "2px" : "22px" }}
+          />
         </button>
-        <button
-          onClick={() => { setUsageType("Export"); setChartView("usage") }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            usageType === "Export" && chartView === "usage"
-              ? "bg-[var(--octopus-mid-purple)] text-[var(--octopus-white)] border border-[var(--octopus-purple)]"
-              : "text-[var(--muted-foreground)] hover:text-[var(--octopus-white)]"
-          }`}
-        >
-          <Zap size={14} />
-          Electricity Exported
-        </button>
-        <button
-          onClick={() => { setChartView("stats"); setUsageType("Import") }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            chartView === "stats"
-              ? "bg-[var(--octopus-mid-purple)] text-[var(--octopus-white)] border border-[var(--octopus-purple)]"
-              : "text-[var(--muted-foreground)] hover:text-[var(--octopus-white)]"
-          }`}
-        >
-          <BarChart3 size={14} />
-          Hourly Stats
-        </button>
+        <span className={unitMode === "dollar" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>NZ$</span>
       </div>
 
-      {/* Chart card */}
+      {/* Electricity (Import) */}
       <div className="rounded-xl border border-border p-6" style={{ backgroundColor: "var(--octopus-dark-purple)" }}>
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-medium flex items-center gap-2" style={{ color: "var(--octopus-white)" }}>
-              <Zap size={16} style={{ color: "var(--octopus-pink)" }} />
-              {usageType === "Import" ? "Electricity" : "Electricity Exported"}
-            </h2>
-            <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-              {dateRangeLabel}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <span className={unitMode === "kwh" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>kWh</span>
-            <button
-              onClick={() => setUnitMode(unitMode === "kwh" ? "dollar" : "kwh")}
-              className="relative w-10 h-5 rounded-full transition-colors"
-              style={{ backgroundColor: unitMode === "kwh" ? "var(--octopus-mid-purple)" : "var(--octopus-cyan)" }}
-            >
-              <span
-                className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-                style={{ left: unitMode === "kwh" ? "2px" : "22px" }}
-              />
-            </button>
-            <span className={unitMode === "dollar" ? "text-[var(--octopus-white)]" : "text-[var(--muted-foreground)]"}>NZ$</span>
-          </div>
+        <div className="mb-4">
+          <h2 className="text-lg font-medium flex items-center gap-2" style={{ color: "var(--octopus-white)" }}>
+            <Zap size={16} style={{ color: "var(--octopus-pink)" }} />
+            Electricity
+          </h2>
+          <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>{dateRangeLabel}</p>
         </div>
+        <EnergyChart
+          startDate={format(start, "yyyy-MM-dd")}
+          endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
+          usageType="Import"
+          unitMode={unitMode}
+          viewMode={viewMode}
+        />
+      </div>
 
-        {/* Chart */}
-        {chartView === "stats" ? (
-          <HourlyStatsChart
-            startDate={format(start, "yyyy-MM-dd")}
-            endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
-            usageType={usageType}
-            unitMode={unitMode}
-          />
-        ) : (
-          <EnergyChart
-            startDate={format(start, "yyyy-MM-dd")}
-            endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
-            usageType={usageType}
-            unitMode={unitMode}
-            viewMode={viewMode}
-          />
-        )}
+      {/* Electricity Exported */}
+      <div className="rounded-xl border border-border p-6" style={{ backgroundColor: "var(--octopus-dark-purple)" }}>
+        <div className="mb-4">
+          <h2 className="text-lg font-medium flex items-center gap-2" style={{ color: "var(--octopus-white)" }}>
+            <Zap size={16} style={{ color: "var(--octopus-cyan)" }} />
+            Electricity Exported
+          </h2>
+          <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>{dateRangeLabel}</p>
+        </div>
+        <EnergyChart
+          startDate={format(start, "yyyy-MM-dd")}
+          endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
+          usageType="Export"
+          unitMode={unitMode}
+          viewMode={viewMode}
+        />
+      </div>
+
+      {/* Hourly Stats */}
+      <div className="rounded-xl border border-border p-6" style={{ backgroundColor: "var(--octopus-dark-purple)" }}>
+        <div className="mb-4">
+          <h2 className="text-lg font-medium flex items-center gap-2" style={{ color: "var(--octopus-white)" }}>
+            <BarChart3 size={16} style={{ color: "var(--octopus-cyan)" }} />
+            Hourly Stats
+          </h2>
+          <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>{dateRangeLabel}</p>
+        </div>
+        <HourlyStatsChart
+          startDate={format(start, "yyyy-MM-dd")}
+          endDate={format(end, "yyyy-MM-dd'T'23:59:59")}
+          usageType="Import"
+          unitMode={unitMode}
+        />
       </div>
 
       {/* Data range indicator */}
