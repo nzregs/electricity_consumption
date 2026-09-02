@@ -214,8 +214,11 @@ export function EnergyDashboard() {
               <p className="text-xs font-medium mb-2" style={{ color: "var(--octopus-pink)" }}>Import Costs</p>
               <div className="space-y-1 text-sm">
                 <CostRow label="Peak" value={importSummary?.peakCost ?? 0} />
+                <CostRow label="Shoulder" value={importSummary?.shoulderCost ?? 0} />
                 <CostRow label="Off-peak" value={importSummary?.offpeakCost ?? 0} />
-                <CostRow label="Night" value={importSummary?.nightCost ?? 0} />
+                {(importSummary?.superoffpeakCost ?? 0) > 0 && (
+                  <CostRow label="Super Off-peak" value={importSummary?.superoffpeakCost ?? 0} />
+                )}
                 <CostRow label="Daily charge" value={importSummary?.dailyChargeCost ?? 0} />
                 <div className="flex justify-between pt-1 border-t border-[var(--octopus-mid-purple)] font-medium" style={{ color: "var(--octopus-white)" }}>
                   <span>Total Import</span>
@@ -228,8 +231,11 @@ export function EnergyDashboard() {
               <p className="text-xs font-medium mb-2" style={{ color: "var(--octopus-cyan)" }}>Export Rebates</p>
               <div className="space-y-1 text-sm">
                 <CostRow label="Peak Export" value={-(exportSummary?.peakCost ?? 0)} />
+                <CostRow label="Shoulder Export" value={-(exportSummary?.shoulderCost ?? 0)} />
                 <CostRow label="Off-peak Export" value={-(exportSummary?.offpeakCost ?? 0)} />
-                <CostRow label="Night Export" value={-(exportSummary?.nightCost ?? 0)} />
+                {(exportSummary?.superoffpeakCost ?? 0) > 0 && (
+                  <CostRow label="Super Off-peak Export" value={-(exportSummary?.superoffpeakCost ?? 0)} />
+                )}
                 <div className="h-[20px]" />
                 <div className="flex justify-between pt-1 border-t border-[var(--octopus-mid-purple)] font-medium" style={{ color: "var(--octopus-white)" }}>
                   <span>Total Rebate</span>

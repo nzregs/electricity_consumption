@@ -12,9 +12,11 @@ interface TariffPeriod {
   PEAK_RATE: number
   SHOULDER_RATE: number
   OFFPEAK_RATE: number
+  SUPER_OFFPEAK_RATE: number
   PEAK_EXPORT_RATE: number
   SHOULDER_EXPORT_RATE: number
   OFFPEAK_EXPORT_RATE: number
+  SUPER_OFFPEAK_EXPORT_RATE: number
   DAILY_CHARGE: number
 }
 
@@ -30,19 +32,22 @@ interface UsageRow {
 interface ChartDataPoint {
   label: string
   peak: number
+  shoulder: number
   offpeak: number
-  night: number
+  superoffpeak: number
   dailyCharge: number
 }
 
 export interface SummaryData {
   peakKwh: number
+  shoulderKwh: number
   offpeakKwh: number
-  nightKwh: number
+  superoffpeakKwh: number
   totalKwh: number
   peakCost: number
+  shoulderCost: number
   offpeakCost: number
-  nightCost: number
+  superoffpeakCost: number
   dailyChargeCost: number
   totalCost: number
 }
@@ -87,12 +92,14 @@ function getRate(tariffType: string, usageType: "Import" | "Export", tariffs: Ta
     switch (tariffType) {
       case "peak": return t.PEAK_EXPORT_RATE
       case "shoulder": return t.SHOULDER_EXPORT_RATE
+      case "superoffpeak": return t.SUPER_OFFPEAK_EXPORT_RATE
       default: return t.OFFPEAK_EXPORT_RATE
     }
   }
   switch (tariffType) {
     case "peak": return t.PEAK_RATE
     case "shoulder": return t.SHOULDER_RATE
+    case "superoffpeak": return t.SUPER_OFFPEAK_RATE
     default: return t.OFFPEAK_RATE
   }
 }
@@ -107,7 +114,10 @@ function formatHourLabel(h: string): string {
   return `${hour - 12}pm`
 }
 
-function CustomTooltip({ active, payload, label, unit, unitMode, colors, peakLabel, offpeakLabel, nightLabel }: any) {
+type TierKey = "peak" | "shoulder" | "offpeak" | "superoffpeak"
+const ZERO_TIERS = { peak: 0, shoulder: 0, offpeak: 0, superoffpeak: 0 }
+
+function CustomTooltip({ active, payload, label, unitMode, colors, labels }: any) {
   if (!active || !payload || payload.length === 0) return null
 
   const data: Record<string, number> = {}
@@ -116,18 +126,20 @@ function CustomTooltip({ active, payload, label, unit, unitMode, colors, peakLab
   }
 
   const peak = data.peak || 0
+  const shoulder = data.shoulder || 0
   const offpeak = data.offpeak || 0
-  const night = data.night || 0
+  const superoffpeak = data.superoffpeak || 0
   const dailyCharge = data.dailyCharge || 0
-  const total = peak + offpeak + night + dailyCharge
+  const total = peak + shoulder + offpeak + superoffpeak + dailyCharge
 
   const formatVal = (v: number) => unitMode === "dollar" ? `$${v.toFixed(2)}` : `${v.toFixed(2)} kWh`
 
-  const rows = [
-    { color: colors.peak, value: peak, label: peakLabel, striped: false },
-    { color: colors.offpeak, value: offpeak, label: offpeakLabel, striped: false },
-    { color: colors.night, value: night, label: nightLabel, striped: false },
-  ]
+  const rows: { color: string; value: number; label: string; striped: boolean }[] = [
+    { color: colors.peak, value: peak, label: labels.peak, striped: false },
+    { color: colors.shoulder, value: shoulder, label: labels.shoulder, striped: false },
+    { color: colors.offpeak, value: offpeak, label: labels.offpeak, striped: false },
+    { color: colors.superoffpeak, value: superoffpeak, label: labels.superoffpeak, striped: false },
+  ].filter(r => r.value > 0)
 
   if (unitMode === "dollar" && dailyCharge > 0) {
     rows.push({ color: colors.dailyCharge, value: dailyCharge, label: "Standing Charge", striped: true })
@@ -165,6 +177,7 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [icp, setIcp] = useState("")
   const [loading, setLoading] = useState(true)
+  const [hasSuperoffpeak, setHasSuperoffpeak] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -181,8 +194,10 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
         const usage: UsageRow[] = data.usage
         setIcp(data.icp)
 
-        // Group usage by date/day and classify tariff
-        const grouped: Record<string, { peak: number; offpeak: number; night: number }> = {}
+        const hasSop = tariffs.some(t => t.TARIFF_TYPE === "superoffpeak")
+        setHasSuperoffpeak(hasSop)
+
+        const grouped: Record<string, { peak: number; shoulder: number; offpeak: number; superoffpeak: number }> = {}
 
         for (const row of usage) {
           const dayOfWeek = row.DAY_OF_WEEK
@@ -191,60 +206,61 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
 
           let key: string
           if (viewMode === "day") {
-            // Group by hour (e.g. "00", "01", ..., "23")
             key = row.TIME_SLOT.substring(0, 2)
           } else if (viewMode === "year") {
-            // Group by month (e.g. "2026-01")
             key = row.DATE_STR.substring(0, 7)
           } else {
             key = row.DATE_STR
           }
 
-          if (!grouped[key]) grouped[key] = { peak: 0, offpeak: 0, night: 0 }
+          if (!grouped[key]) grouped[key] = { ...ZERO_TIERS }
 
           if (tariffType === "peak") {
             grouped[key].peak += kwh
           } else if (tariffType === "shoulder") {
-            grouped[key].offpeak += kwh
+            grouped[key].shoulder += kwh
+          } else if (tariffType === "superoffpeak") {
+            grouped[key].superoffpeak += kwh
           } else {
-            grouped[key].night += kwh
+            grouped[key].offpeak += kwh
           }
         }
 
-        // Get daily charge from tariffs
         const dailyChargeRate = tariffs.length > 0 ? Number(tariffs[0].DAILY_CHARGE) : 0
 
-        // Build chart data maintaining correct order - always show all slots even if no data
         let chartPoints: ChartDataPoint[]
         if (viewMode === "week") {
-          // Generate all 7 days of the week from startDate
           const [sy, sm, sd] = startDate.split("-").map(Number)
           chartPoints = Array.from({ length: 7 }, (_, i) => {
             const d = new Date(sy, sm - 1, sd + i)
             const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-            const dayIdx = d.getDay() // 0=Sun, 1=Mon, ...
+            const dayIdx = d.getDay()
             const label = DAY_LABELS[dayIdx === 0 ? 6 : dayIdx - 1]
+            const g = grouped[dateStr] || ZERO_TIERS
             return {
               label,
-              peak: Number((grouped[dateStr]?.peak || 0).toFixed(2)),
-              offpeak: Number((grouped[dateStr]?.offpeak || 0).toFixed(2)),
-              night: Number((grouped[dateStr]?.night || 0).toFixed(2)),
+              peak: Number(g.peak.toFixed(2)),
+              shoulder: Number(g.shoulder.toFixed(2)),
+              offpeak: Number(g.offpeak.toFixed(2)),
+              superoffpeak: Number(g.superoffpeak.toFixed(2)),
               dailyCharge: dailyChargeRate,
             }
           })
         } else if (viewMode === "day") {
-          // Show 24 hours (00-23), display as "12am", "1am", etc.
           const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))
           const perHourCharge = dailyChargeRate / 24
-          chartPoints = hours.map(h => ({
-            label: formatHourLabel(h),
-            peak: Number((grouped[h]?.peak || 0).toFixed(2)),
-            offpeak: Number((grouped[h]?.offpeak || 0).toFixed(2)),
-            night: Number((grouped[h]?.night || 0).toFixed(2)),
-            dailyCharge: Number(perHourCharge.toFixed(4)),
-          }))
+          chartPoints = hours.map(h => {
+            const g = grouped[h] || ZERO_TIERS
+            return {
+              label: formatHourLabel(h),
+              peak: Number(g.peak.toFixed(2)),
+              shoulder: Number(g.shoulder.toFixed(2)),
+              offpeak: Number(g.offpeak.toFixed(2)),
+              superoffpeak: Number(g.superoffpeak.toFixed(2)),
+              dailyCharge: Number(perHourCharge.toFixed(4)),
+            }
+          })
         } else {
-          // Month view: generate all days in the month from startDate to endDate
           const [sy, sm, sd] = startDate.split("-").map(Number)
           const endDateStr = endDate.substring(0, 10)
           const [ey, em, ed] = endDateStr.split("-").map(Number)
@@ -256,77 +272,75 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
             allDates.push(ds)
             cursor.setDate(cursor.getDate() + 1)
           }
-          chartPoints = allDates.map(d => ({
-            label: d.substring(8),
-            peak: Number((grouped[d]?.peak || 0).toFixed(2)),
-            offpeak: Number((grouped[d]?.offpeak || 0).toFixed(2)),
-            night: Number((grouped[d]?.night || 0).toFixed(2)),
-            dailyCharge: dailyChargeRate,
-          }))
+          chartPoints = allDates.map(d => {
+            const g = grouped[d] || ZERO_TIERS
+            return {
+              label: d.substring(8),
+              peak: Number(g.peak.toFixed(2)),
+              shoulder: Number(g.shoulder.toFixed(2)),
+              offpeak: Number(g.offpeak.toFixed(2)),
+              superoffpeak: Number(g.superoffpeak.toFixed(2)),
+              dailyCharge: dailyChargeRate,
+            }
+          })
         }
 
-        // Year view: group by month
         if (viewMode === "year") {
           const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
           const [sy] = startDate.split("-").map(Number)
           chartPoints = Array.from({ length: 12 }, (_, i) => {
             const monthKey = `${sy}-${String(i + 1).padStart(2, "0")}`
             const daysInMonth = new Date(sy, i + 1, 0).getDate()
+            const g = grouped[monthKey] || ZERO_TIERS
             return {
               label: MONTH_LABELS[i],
-              peak: Number((grouped[monthKey]?.peak || 0).toFixed(2)),
-              offpeak: Number((grouped[monthKey]?.offpeak || 0).toFixed(2)),
-              night: Number((grouped[monthKey]?.night || 0).toFixed(2)),
+              peak: Number(g.peak.toFixed(2)),
+              shoulder: Number(g.shoulder.toFixed(2)),
+              offpeak: Number(g.offpeak.toFixed(2)),
+              superoffpeak: Number(g.superoffpeak.toFixed(2)),
               dailyCharge: dailyChargeRate * daysInMonth,
             }
           })
         }
 
-        // Calculate number of days for the standing charge total
         const numDays = viewMode === "day" ? 1 : viewMode === "week" ? 7 : viewMode === "year" ? 365 : chartPoints.length
 
-        // Calculate summary
         const peakKwh = chartPoints.reduce((sum, d) => sum + d.peak, 0)
+        const shoulderKwh = chartPoints.reduce((sum, d) => sum + d.shoulder, 0)
         const offpeakKwh = chartPoints.reduce((sum, d) => sum + d.offpeak, 0)
-        const nightKwh = chartPoints.reduce((sum, d) => sum + d.night, 0)
-        const totalKwh = peakKwh + offpeakKwh + nightKwh
+        const superoffpeakKwh = chartPoints.reduce((sum, d) => sum + d.superoffpeak, 0)
+        const totalKwh = peakKwh + shoulderKwh + offpeakKwh + superoffpeakKwh
 
         const peakRate = getRate("peak", usageType, tariffs)
         const shoulderRate = getRate("shoulder", usageType, tariffs)
         const offpeakRate = getRate("offpeak", usageType, tariffs)
+        const superoffpeakRate = getRate("superoffpeak", usageType, tariffs)
 
         const dailyChargeCost = usageType === "Export" ? 0 : numDays * dailyChargeRate
 
         const computedSummary: SummaryData = {
-          peakKwh, offpeakKwh, nightKwh, totalKwh,
+          peakKwh, shoulderKwh, offpeakKwh, superoffpeakKwh, totalKwh,
           peakCost: peakKwh * peakRate,
-          offpeakCost: offpeakKwh * shoulderRate,
-          nightCost: nightKwh * offpeakRate,
+          shoulderCost: shoulderKwh * shoulderRate,
+          offpeakCost: offpeakKwh * offpeakRate,
+          superoffpeakCost: superoffpeakKwh * superoffpeakRate,
           dailyChargeCost,
-          totalCost: peakKwh * peakRate + offpeakKwh * shoulderRate + nightKwh * offpeakRate + dailyChargeCost,
+          totalCost: peakKwh * peakRate + shoulderKwh * shoulderRate + offpeakKwh * offpeakRate + superoffpeakKwh * superoffpeakRate + dailyChargeCost,
         }
         setSummary(computedSummary)
         onSummaryReady?.(computedSummary)
 
-        // Convert to dollars if needed
-        if (unitMode === "dollar" && usageType === "Import") {
+        if (unitMode === "dollar") {
+          const showDailyCharge = usageType === "Import"
           chartPoints = chartPoints.map(d => ({
             ...d,
             peak: Number((d.peak * peakRate).toFixed(2)),
-            offpeak: Number((d.offpeak * shoulderRate).toFixed(2)),
-            night: Number((d.night * offpeakRate).toFixed(2)),
-            dailyCharge: Number(d.dailyCharge.toFixed(2)),
-          }))
-        } else if (unitMode === "dollar") {
-          chartPoints = chartPoints.map(d => ({
-            ...d,
-            peak: Number((d.peak * peakRate).toFixed(2)),
-            offpeak: Number((d.offpeak * shoulderRate).toFixed(2)),
-            night: Number((d.night * offpeakRate).toFixed(2)),
-            dailyCharge: 0,
+            shoulder: Number((d.shoulder * shoulderRate).toFixed(2)),
+            offpeak: Number((d.offpeak * offpeakRate).toFixed(2)),
+            superoffpeak: Number((d.superoffpeak * superoffpeakRate).toFixed(2)),
+            dailyCharge: showDailyCharge ? Number(d.dailyCharge.toFixed(2)) : 0,
           }))
         } else {
-          // In kWh mode, zero out daily charge since it's not a kWh measure
           chartPoints = chartPoints.map(d => ({ ...d, dailyCharge: 0 }))
         }
 
@@ -346,14 +360,17 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
     ? `${summary?.totalKwh?.toFixed(2) || "0"}`
     : `$${summary?.totalCost?.toFixed(2) || "0"}`
 
-  // Colors matching the Octopus app screenshots
   const colors = usageType === "Import"
-    ? { peak: "#2DD4A0", offpeak: "#E020B0", night: "#D8A0E8", dailyCharge: "#E880C8" }
-    : { peak: "#4ECDC4", offpeak: "#60F0F8", night: "#9B7DFF", dailyCharge: "#E880C8" }
+    ? { peak: "#2DD4A0", shoulder: "#E020B0", offpeak: "#D8A0E8", superoffpeak: "#FFD166", dailyCharge: "#E880C8" }
+    : { peak: "#4ECDC4", shoulder: "#60F0F8", offpeak: "#9B7DFF", superoffpeak: "#FFD166", dailyCharge: "#E880C8" }
 
-  const peakLabel = usageType === "Import" ? "Peak" : "Peak Export"
-  const offpeakLabel = usageType === "Import" ? "Off-peak" : "Off-peak Export"
-  const nightLabel = usageType === "Import" ? "Night" : "Night Export"
+  const isExport = usageType === "Export"
+  const labels = {
+    peak: isExport ? "Peak Export" : "Peak",
+    shoulder: isExport ? "Shoulder Export" : "Shoulder",
+    offpeak: isExport ? "Off-peak Export" : "Off-peak",
+    superoffpeak: isExport ? "Super Off-peak Export" : "Super Off-peak",
+  }
 
   if (loading) {
     return (
@@ -365,7 +382,6 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
 
   return (
     <div>
-      {/* Total display */}
       <div className="flex items-start justify-between mb-4">
         <div>
           <p className="text-3xl font-bold" style={{ color: "var(--octopus-white)" }}>
@@ -377,7 +393,6 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
         </div>
       </div>
 
-      {/* Chart */}
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
@@ -406,33 +421,41 @@ export function EnergyChart({ startDate, endDate, usageType, unitMode, viewMode,
                 style: { fill: "var(--muted-foreground)", fontSize: 11 }
               }}
             />
-            <Tooltip content={<CustomTooltip unit={unit} unitMode={unitMode} colors={colors} peakLabel={peakLabel} offpeakLabel={offpeakLabel} nightLabel={nightLabel} />} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
+            <Tooltip content={<CustomTooltip unitMode={unitMode} colors={colors} labels={labels} />} cursor={{ fill: "rgba(255,255,255,0.05)" }} />
             <Bar dataKey="dailyCharge" stackId="a" fill="url(#dailyChargeStripes)" radius={[0, 0, 0, 0]} name="Daily charge" />
-            <Bar dataKey="night" stackId="a" fill={colors.night} radius={[0, 0, 0, 0]} name={nightLabel} />
-            <Bar dataKey="offpeak" stackId="a" fill={colors.offpeak} radius={[0, 0, 0, 0]} name={offpeakLabel} />
-            <Bar dataKey="peak" stackId="a" fill={colors.peak} radius={[4, 4, 0, 0]} name={peakLabel} />
+            {hasSuperoffpeak && <Bar dataKey="superoffpeak" stackId="a" fill={colors.superoffpeak} radius={[0, 0, 0, 0]} name={labels.superoffpeak} />}
+            <Bar dataKey="offpeak" stackId="a" fill={colors.offpeak} radius={[0, 0, 0, 0]} name={labels.offpeak} />
+            <Bar dataKey="shoulder" stackId="a" fill={colors.shoulder} radius={[0, 0, 0, 0]} name={labels.shoulder} />
+            <Bar dataKey="peak" stackId="a" fill={colors.peak} radius={[4, 4, 0, 0]} name={labels.peak} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Legend / Summary */}
       {summary && (
         <div className="mt-6 space-y-2 text-sm" style={{ color: "var(--octopus-white)" }}>
           <SummaryRow
-            color={colors.night}
-            label={nightLabel}
-            percentage={summary.totalKwh > 0 ? Math.round((summary.nightKwh / summary.totalKwh) * 100) : 0}
-            value={unitMode === "kwh" ? `${summary.nightKwh.toFixed(2)} kWh` : `$${summary.nightCost.toFixed(2)}`}
-          />
-          <SummaryRow
             color={colors.offpeak}
-            label={offpeakLabel}
+            label={labels.offpeak}
             percentage={summary.totalKwh > 0 ? Math.round((summary.offpeakKwh / summary.totalKwh) * 100) : 0}
             value={unitMode === "kwh" ? `${summary.offpeakKwh.toFixed(2)} kWh` : `$${summary.offpeakCost.toFixed(2)}`}
           />
+          {hasSuperoffpeak && (
+            <SummaryRow
+              color={colors.superoffpeak}
+              label={labels.superoffpeak}
+              percentage={summary.totalKwh > 0 ? Math.round((summary.superoffpeakKwh / summary.totalKwh) * 100) : 0}
+              value={unitMode === "kwh" ? `${summary.superoffpeakKwh.toFixed(2)} kWh` : `$${summary.superoffpeakCost.toFixed(2)}`}
+            />
+          )}
+          <SummaryRow
+            color={colors.shoulder}
+            label={labels.shoulder}
+            percentage={summary.totalKwh > 0 ? Math.round((summary.shoulderKwh / summary.totalKwh) * 100) : 0}
+            value={unitMode === "kwh" ? `${summary.shoulderKwh.toFixed(2)} kWh` : `$${summary.shoulderCost.toFixed(2)}`}
+          />
           <SummaryRow
             color={colors.peak}
-            label={peakLabel}
+            label={labels.peak}
             percentage={summary.totalKwh > 0 ? Math.round((summary.peakKwh / summary.totalKwh) * 100) : 0}
             value={unitMode === "kwh" ? `${summary.peakKwh.toFixed(2)} kWh` : `$${summary.peakCost.toFixed(2)}`}
           />

@@ -10,9 +10,11 @@ interface TariffPeriod {
   PEAK_RATE: number
   SHOULDER_RATE: number
   OFFPEAK_RATE: number
+  SUPER_OFFPEAK_RATE: number
   PEAK_EXPORT_RATE: number
   SHOULDER_EXPORT_RATE: number
   OFFPEAK_EXPORT_RATE: number
+  SUPER_OFFPEAK_EXPORT_RATE: number
 }
 
 interface StatsRow {
@@ -53,9 +55,9 @@ function getAvgRate(usageType: "Import" | "Export", tariffs: TariffPeriod[]): nu
   if (tariffs.length === 0) return 0
   const t = tariffs[0]
   if (usageType === "Export") {
-    return (t.PEAK_EXPORT_RATE + t.SHOULDER_EXPORT_RATE + t.OFFPEAK_EXPORT_RATE) / 3
+    return (t.PEAK_EXPORT_RATE + t.SHOULDER_EXPORT_RATE + t.OFFPEAK_EXPORT_RATE + t.SUPER_OFFPEAK_EXPORT_RATE) / 4
   }
-  return (t.PEAK_RATE + t.SHOULDER_RATE + t.OFFPEAK_RATE) / 3
+  return (t.PEAK_RATE + t.SHOULDER_RATE + t.OFFPEAK_RATE + t.SUPER_OFFPEAK_RATE) / 4
 }
 
 function StatsTooltip({ active, payload, unitMode }: any) {
