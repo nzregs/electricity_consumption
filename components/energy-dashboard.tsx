@@ -216,7 +216,7 @@ export function EnergyDashboard() {
                 <CostRow label="Peak" value={importSummary?.peakCost ?? 0} />
                 <CostRow label="Shoulder" value={importSummary?.shoulderCost ?? 0} />
                 <CostRow label="Off-peak" value={importSummary?.offpeakCost ?? 0} />
-                {(importSummary?.superoffpeakCost ?? 0) > 0 && (
+                {(importSummary?.superoffpeakKwh ?? 0) > 0 && (
                   <CostRow label="Super Off-peak" value={importSummary?.superoffpeakCost ?? 0} />
                 )}
                 <CostRow label="Daily charge" value={importSummary?.dailyChargeCost ?? 0} />
@@ -233,7 +233,7 @@ export function EnergyDashboard() {
                 <CostRow label="Peak Export" value={-(exportSummary?.peakCost ?? 0)} />
                 <CostRow label="Shoulder Export" value={-(exportSummary?.shoulderCost ?? 0)} />
                 <CostRow label="Off-peak Export" value={-(exportSummary?.offpeakCost ?? 0)} />
-                {(exportSummary?.superoffpeakCost ?? 0) > 0 && (
+                {(exportSummary?.superoffpeakKwh ?? 0) > 0 && (
                   <CostRow label="Super Off-peak Export" value={-(exportSummary?.superoffpeakCost ?? 0)} />
                 )}
                 <div className="h-[20px]" />
