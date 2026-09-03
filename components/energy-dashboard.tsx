@@ -70,13 +70,6 @@ function CalendarPicker({ value, onChange, onClose }: { value: Date; onChange: (
           )
         })}
       </div>
-      <button
-        onClick={() => { onChange(new Date()); onClose() }}
-        className="mt-3 w-full py-1.5 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--octopus-mid-purple)]"
-        style={{ color: "var(--octopus-cyan)" }}
-      >
-        Today
-      </button>
     </div>
   )
 }
@@ -198,6 +191,13 @@ export function EnergyDashboard() {
               />
             )}
           </div>
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="px-3 py-2 text-xs font-medium rounded-lg border border-border hover:bg-[var(--octopus-mid-purple)] transition-colors"
+            style={{ color: "var(--octopus-cyan)" }}
+          >
+            Today
+          </button>
           <button onClick={navigateNext} className="p-2 rounded-lg border border-border hover:bg-[var(--octopus-mid-purple)]">
             <ChevronRight size={18} />
           </button>
